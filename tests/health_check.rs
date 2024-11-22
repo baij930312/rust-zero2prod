@@ -91,6 +91,33 @@ async fn subcribe_returns_a_400_when_a_data_is_missing() {
     }
 }
 
+
+#[tokio::test]
+async fn subcribe_returns_a_200_when_fields_are_present_but_empty() {
+    let app = spawn_app().await;
+    let client = reqwest::Client::new();
+    let test_case = vec![
+        ("name=&bai@asd.com", "empty name"),
+        ("name=asdasdsa&email= ", "empty email"),
+        ("ame=asdasdsa&email=asdadsa2", "invalid email"),
+    ];
+    for (body, msg) in test_case {
+        let response = client
+            .post(&format!("{}/subscriptions", &app.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            "The Api did not fail with 400 Bad Request when the payload was {}",
+            msg
+        );
+    }
+}
+
 async fn spawn_app() -> TestApp {
     Lazy::force(&TRACING);
 
