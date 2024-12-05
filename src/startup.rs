@@ -1,20 +1,75 @@
-use crate::routes::{health_check, subscriptions};
+use crate::{
+    configuration::{DatabaseSettings, Settings},
+    email_client::EmailClient,
+    routes::{health_check, subscriptions},
+};
 use ::actix_web::{web, App, HttpServer};
 use actix_web::dev::Server;
-use sqlx::PgPool;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
 
-pub fn run(listener: TcpListener, db_poll: PgPool) -> Result<Server, std::io::Error> {
+pub fn run(
+    listener: TcpListener,
+    db_poll: PgPool,
+    email_client: EmailClient,
+) -> Result<Server, std::io::Error> {
     let connection = web::Data::new(db_poll);
+    let email_client = web::Data::new(email_client);
     let server: actix_web::dev::Server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscriptions))
             .app_data(connection.clone())
+            .app_data(email_client.clone())
     })
     .listen(listener)?
     .run();
     Ok(server)
+}
+
+pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
+    PgPoolOptions::new()
+        .acquire_timeout(std::time::Duration::from_secs(2))
+        .connect_lazy_with(configuration.with_db())
+}
+
+pub struct Application {
+    port: u16,
+    server: Server,
+}
+
+impl Application {
+    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
+        let address = format!(
+            "{}:{}",
+            configuration.application.host, configuration.application.port
+        );
+        let listener: TcpListener = TcpListener::bind(address).expect("Faild bind address");
+        let port = listener.local_addr().unwrap().port();
+        let connection_poll = get_connection_pool(&configuration.database);
+        let sender_email = configuration
+            .email_client
+            .sender()
+            .expect("Invalid sender email address.");
+        let timeout = configuration.email_client.timeout();
+        let var_name = EmailClient::new(
+            configuration.email_client.base_url,
+            sender_email,
+            configuration.email_client.authorization_token,
+            timeout,
+        );
+        let email_client = var_name;
+        let server = run(listener, connection_poll, email_client)?;
+        Ok(Self { port, server })
+    }
+
+    pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
+        self.server.await
+    }
+
+    pub fn port(&self) -> u16 {
+        self.port
+    }
 }
