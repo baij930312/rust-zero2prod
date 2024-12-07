@@ -1,5 +1,7 @@
 use ::actix_web::HttpResponse;
 use actix_web::web;
+use actix_web::ResponseError;
+use anyhow::Context;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -8,22 +10,24 @@ pub struct Parameters {
     subscription_token: String,
 }
 
-#[tracing::instrument(name = "Confirm a pending subscriber", skip(_parameters))]
-pub async fn confirm(_parameters: web::Query<Parameters>, pool: web::Data<PgPool>) -> HttpResponse {
-    let id = match get_subscriber_id_from_token(&pool, &_parameters.subscription_token).await {
-        Ok(id) => id,
-        Err(_) => return HttpResponse::InternalServerError().finish(),
-    };
+#[tracing::instrument(name = "Confirm a pending subscriber", skip(parameters, pool))]
+pub async fn confirm(
+    parameters: web::Query<Parameters>,
+    pool: web::Data<PgPool>,
+) -> Result<HttpResponse, ConfirmError> {
+    let id = get_subscriber_id_from_token(&pool, &parameters.subscription_token)
+        .await
+        .context("查询订阅id失败")?;
 
     match id {
         Some(subscriber_id) => {
-            if confirm_subscriber(&pool, subscriber_id).await.is_err() {
-                return HttpResponse::InternalServerError().finish();
-            }
-            HttpResponse::Ok().finish()
+            confirm_subscriber(&pool, subscriber_id)
+                .await
+                .context("更新确认状态失败")?;
         }
-        None => HttpResponse::Unauthorized().finish(),
+        None => return Err(ConfirmError::UnauthorizedTokenError("没有找到id".into())),
     }
+    Ok(HttpResponse::Ok().finish())
 }
 
 #[tracing::instrument(name = "Get subscriber_id from token", skip(token, pool))]
@@ -43,7 +47,6 @@ pub async fn get_subscriber_id_from_token(
         tracing::error!("Failed to execute query:{:?}", e);
         e
     })?;
-
     Ok(result.map(|r| r.subscriber_id))
 }
 
@@ -62,5 +65,41 @@ pub async fn confirm_subscriber(pool: &PgPool, subscriber_id: Uuid) -> Result<()
         e
     })?;
 
+    Ok(())
+}
+
+#[derive(thiserror::Error)]
+pub enum ConfirmError {
+    #[error("{0}")]
+    UnauthorizedTokenError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+impl ResponseError for ConfirmError {
+    fn status_code(&self) -> reqwest::StatusCode {
+        match self {
+            ConfirmError::UnauthorizedTokenError(_) => reqwest::StatusCode::UNAUTHORIZED,
+            ConfirmError::UnexpectedError(_) => reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+impl std::fmt::Debug for ConfirmError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    write!(f, "{}\n", e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        write!(f, "\nCaused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
     Ok(())
 }

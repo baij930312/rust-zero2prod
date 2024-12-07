@@ -18,64 +18,6 @@ pub struct FormData {
     name: String,
 }
 
-#[derive(thiserror::Error)]
-pub enum SubscriberError {
-    #[error("{0}")]
-    ValidationTokenError(String),
-    #[error(transparent)]
-    UnexpectedError(#[from] anyhow::Error),
-}
-
-impl ResponseError for SubscriberError {
-    fn status_code(&self) -> reqwest::StatusCode {
-        match self {
-            SubscriberError::ValidationTokenError(_) => reqwest::StatusCode::BAD_REQUEST,
-            SubscriberError::UnexpectedError(_) => reqwest::StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
-
-impl std::fmt::Debug for SubscriberError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        error_chain_fmt(self, f)
-    }
-}
-
-pub struct StoreTokenError(sqlx::Error);
-
-impl std::fmt::Debug for StoreTokenError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        error_chain_fmt(self, f)
-    }
-}
-
-impl std::error::Error for StoreTokenError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.0)
-    }
-}
-
-impl std::fmt::Display for StoreTokenError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "A database error was encountered while trying to store a subscription"
-        )
-    }
-}
-
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    write!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        write!(f, "\nCaused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
-}
 
 #[tracing::instrument(
     name = "Adding as a new  subscriber",
@@ -91,7 +33,7 @@ pub async fn subscribe(
     email_client: web::Data<EmailClient>,
     base_url: web::Data<ApplicationBaseUrl>,
 ) -> Result<HttpResponse, SubscriberError> {
-    let new_subscriber = form
+    let new_subscriber: NewSubscriber = form
         .0
         .try_into()
         .map_err(SubscriberError::ValidationTokenError)?;
@@ -213,4 +155,64 @@ impl TryFrom<FormData> for NewSubscriber {
         let email = SubscriberEmail::parse(value.email)?;
         Ok(Self { email, name })
     }
+}
+
+
+#[derive(thiserror::Error)]
+pub enum SubscriberError {
+    #[error("{0}")]
+    ValidationTokenError(String),
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+impl ResponseError for SubscriberError {
+    fn status_code(&self) -> reqwest::StatusCode {
+        match self {
+            SubscriberError::ValidationTokenError(_) => reqwest::StatusCode::BAD_REQUEST,
+            SubscriberError::UnexpectedError(_) => reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+impl std::fmt::Debug for SubscriberError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+pub struct StoreTokenError(sqlx::Error);
+
+impl std::fmt::Debug for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        error_chain_fmt(self, f)
+    }
+}
+
+impl std::error::Error for StoreTokenError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+impl std::fmt::Display for StoreTokenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "A database error was encountered while trying to store a subscription"
+        )
+    }
+}
+
+fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    write!(f, "{}\n", e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        write!(f, "\nCaused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
 }
