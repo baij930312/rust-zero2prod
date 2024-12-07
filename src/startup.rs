@@ -1,7 +1,7 @@
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
-    routes::{health_check, subscriptions},
+    routes::{confirm, health_check, subscribe},
 };
 use ::actix_web::{web, App, HttpServer};
 use actix_web::dev::Server;
@@ -13,15 +13,19 @@ pub fn run(
     listener: TcpListener,
     db_poll: PgPool,
     email_client: EmailClient,
+    base_url: String,
 ) -> Result<Server, std::io::Error> {
     let connection = web::Data::new(db_poll);
     let email_client = web::Data::new(email_client);
+    let base_url = web::Data::new(ApplicationBaseUrl(base_url));
     let server: actix_web::dev::Server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
-            .route("/subscriptions", web::post().to(subscriptions))
+            .route("/subscriptions/confirm", web::get().to(confirm))
+            .route("/subscriptions", web::post().to(subscribe))
             .app_data(connection.clone())
+            .app_data(base_url.clone())
             .app_data(email_client.clone())
     })
     .listen(listener)?
@@ -39,6 +43,8 @@ pub struct Application {
     port: u16,
     server: Server,
 }
+
+pub struct ApplicationBaseUrl(pub String);
 
 impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
@@ -61,7 +67,12 @@ impl Application {
             timeout,
         );
         let email_client = var_name;
-        let server = run(listener, connection_poll, email_client)?;
+        let server = run(
+            listener,
+            connection_poll,
+            email_client,
+            configuration.application.base_url,
+        )?;
         Ok(Self { port, server })
     }
 
