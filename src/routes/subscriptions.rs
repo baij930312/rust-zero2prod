@@ -18,7 +18,6 @@ pub struct FormData {
     name: String,
 }
 
-
 #[tracing::instrument(
     name = "Adding as a new  subscriber",
     skip(form,pool,email_client,base_url),
@@ -83,7 +82,7 @@ pub async fn send_confirmation_email(
         confrimation_link
     );
     email_client
-        .send_email(new_subscriber.email, "Welcome", &html_body, &test_body)
+        .send_email(&new_subscriber.email, "Welcome", &html_body, &test_body)
         .await
 }
 
@@ -156,7 +155,6 @@ impl TryFrom<FormData> for NewSubscriber {
         Ok(Self { email, name })
     }
 }
-
 
 #[derive(thiserror::Error)]
 pub enum SubscriberError {

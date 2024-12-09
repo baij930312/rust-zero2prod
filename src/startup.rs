@@ -1,7 +1,7 @@
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
-    routes::{confirm, health_check, subscribe},
+    routes::{confirm, health_check, publish_newsletter, subscribe},
 };
 use ::actix_web::{web, App, HttpServer};
 use actix_web::dev::Server;
@@ -24,6 +24,7 @@ pub fn run(
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/subscriptions", web::post().to(subscribe))
+            .route("/newsletters", web::post().to(publish_newsletter))
             .app_data(connection.clone())
             .app_data(base_url.clone())
             .app_data(email_client.clone())
