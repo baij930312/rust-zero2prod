@@ -1,3 +1,4 @@
+use tokio::task::JoinHandle;
 use tracing::subscriber::set_global_default;
 use tracing::Subscriber;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
@@ -26,4 +27,26 @@ where
         .with(env_filter)
         .with(JsonStorageLayer)
         .with(formatting_layer)
+}
+
+pub fn error_chain_fmt(
+    e: &impl std::error::Error,
+    f: &mut std::fmt::Formatter<'_>,
+) -> std::fmt::Result {
+    write!(f, "{}\n", e)?;
+    let mut current = e.source();
+    while let Some(cause) = current {
+        write!(f, "\nCaused by:\n\t{}", cause)?;
+        current = cause.source();
+    }
+    Ok(())
+}
+
+pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let currenrt_span = tracing::Span::current();
+    tokio::task::spawn_blocking(move || currenrt_span.in_scope(f))
 }

@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailClient,
-    startup::ApplicationBaseUrl,
+    startup::ApplicationBaseUrl, telemetry::error_chain_fmt,
 };
 
 #[derive(serde::Deserialize)]
@@ -43,7 +43,7 @@ pub async fn subscribe(
     let subscriber_id = insert_subscriber(&new_subscriber, &mut transaction)
         .await
         .context("Failed to insert new subscriber in the db")?;
-    let subscription_token = genrate_subscription_token();
+    let subscription_token = generate_subscription_token();
     store_token(&mut transaction, subscriber_id, &subscription_token)
         .await
         .context("Failed to store the confirmation token for a new subscriber")?;
@@ -138,7 +138,7 @@ pub async fn store_token(
     Ok(())
 }
 
-fn genrate_subscription_token() -> String {
+fn generate_subscription_token() -> String {
     let mut rng = thread_rng();
     std::iter::repeat_with(|| rng.sample(Alphanumeric))
         .map(char::from)
@@ -202,15 +202,3 @@ impl std::fmt::Display for StoreTokenError {
     }
 }
 
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    write!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        write!(f, "\nCaused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
-}

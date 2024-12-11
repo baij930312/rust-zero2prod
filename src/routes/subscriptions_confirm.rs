@@ -5,6 +5,8 @@ use anyhow::Context;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::telemetry::error_chain_fmt;
+
 #[derive(serde::Deserialize)]
 pub struct Parameters {
     subscription_token: String,
@@ -90,16 +92,4 @@ impl std::fmt::Debug for ConfirmError {
         error_chain_fmt(self, f)
     }
 }
-
-fn error_chain_fmt(
-    e: &impl std::error::Error,
-    f: &mut std::fmt::Formatter<'_>,
-) -> std::fmt::Result {
-    write!(f, "{}\n", e)?;
-    let mut current = e.source();
-    while let Some(cause) = current {
-        write!(f, "\nCaused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
-}
+ 

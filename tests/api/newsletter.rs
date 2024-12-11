@@ -106,3 +106,28 @@ async fn create_confirmed_subscriber(app: &TestApp) {
         .error_for_status()
         .unwrap();
 }
+
+#[tokio::test]
+async fn requests_missing_authorization_are_rejected() {
+    let app = spawn_app().await;
+
+    let nesletter_request_body = serde_json::json!({
+        "title":"Newsletter title",
+        "content":{
+            "text":"Newsletter bodu as plain text",
+            "html":"<p>Newsletter bodu as html</p>",
+        }
+    });
+    let response = reqwest::Client::new()
+        .post(&format!("{}/newsletters", &app.address))
+        .json(&nesletter_request_body)
+        .send()
+        .await
+        .expect("Failed to excute request");
+
+    assert_eq!(401, response.status().as_u16());
+    assert_eq!(
+        r#"Basic realm="publish""#,
+        response.headers()["WWW-Authenticate"]
+    );
+}
