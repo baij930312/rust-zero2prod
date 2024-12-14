@@ -1,10 +1,11 @@
 use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
-    routes::{confirm, health_check, publish_newsletter, subscribe},
+    routes::{confirm, health_check, home, login, login_form, publish_newsletter, subscribe},
 };
 use ::actix_web::{web, App, HttpServer};
 use actix_web::dev::Server;
+use secrecy::Secret;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
@@ -14,17 +15,23 @@ pub fn run(
     db_poll: PgPool,
     email_client: EmailClient,
     base_url: String,
+    hmac_secret: Secret<String>,
 ) -> Result<Server, std::io::Error> {
     let connection = web::Data::new(db_poll);
+    let hmac_secret = web::Data::new(HmacSecret(hmac_secret.clone()));
     let email_client = web::Data::new(email_client);
     let base_url = web::Data::new(ApplicationBaseUrl(base_url));
     let server: actix_web::dev::Server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
+            .route("/", web::get().to(home))
+            .route("/login", web::get().to(login_form))
+            .route("/login", web::post().to(login))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/newsletters", web::post().to(publish_newsletter))
+            .app_data(hmac_secret.clone())
             .app_data(connection.clone())
             .app_data(base_url.clone())
             .app_data(email_client.clone())
@@ -46,6 +53,9 @@ pub struct Application {
 }
 
 pub struct ApplicationBaseUrl(pub String);
+
+#[derive(Clone)]
+pub struct HmacSecret(pub Secret<String>);
 
 impl Application {
     pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
@@ -73,6 +83,7 @@ impl Application {
             connection_poll,
             email_client,
             configuration.application.base_url,
+            configuration.application.hmac_secret,
         )?;
         Ok(Self { port, server })
     }
