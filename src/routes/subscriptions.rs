@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
     domain::{NewSubscriber, SubscriberEmail, SubscriberName},
     email_client::EmailClient,
-    startup::ApplicationBaseUrl, telemetry::error_chain_fmt,
+    startup::ApplicationBaseUrl, utils::error_chain_fmt,
 };
 
 #[derive(serde::Deserialize)]
@@ -201,4 +201,3 @@ impl std::fmt::Display for StoreTokenError {
         )
     }
 }
-
