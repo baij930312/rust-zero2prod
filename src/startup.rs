@@ -11,7 +11,7 @@ use ::actix_web::{web, App, HttpServer};
 use actix_session::{storage::RedisSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, dev::Server, middleware::from_fn};
 use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
- 
+
 use secrecy::{ExposeSecret, Secret};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
@@ -47,13 +47,13 @@ async fn run(
             .route("/login", web::post().to(login))
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/subscriptions", web::post().to(subscribe))
-            .route("/newsletters", web::post().to(publish_newsletter))
             .service(
                 web::scope("/admin")
                     .wrap(from_fn(reject_anonymous_users))
                     .route("/dashboard", web::get().to(admin_dashboard))
                     .route("/password", web::get().to(change_password_from))
                     .route("/password", web::post().to(change_password))
+                    .route("/newsletters", web::post().to(publish_newsletter))
                     .route("/logout", web::post().to(logout)),
             )
             .app_data(hmac_secret.clone())
