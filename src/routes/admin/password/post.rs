@@ -23,11 +23,7 @@ pub async fn change_password(
     pool: web::Data<PgPool>,
 ) -> Result<HttpResponse, actix_web::Error> {
     let user_id = user_id.into_inner();
-    // let user_id = session.get_user_id().map_err(e500)?;
-    // if user_id.is_none() {
-    //     return Ok(see_other("/login"));
-    // };
-    // let user_id = user_id.unwrap();
+
     if from.new_password.expose_secret() != from.new_password_check.expose_secret() {
         FlashMessage::error(
             "You entered two different new passwords - the field values must match.",

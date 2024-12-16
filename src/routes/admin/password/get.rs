@@ -3,19 +3,10 @@ use actix_web::http::header::ContentType;
 use actix_web_flash_messages::IncomingFlashMessages;
 use std::fmt::Write;
 
-use crate::{
-    session_state::TypeSession,
-    utils::{e500, see_other},
-};
-
 pub async fn change_password_from(
-    session: TypeSession,
+    // session: TypeSession,
     flash_messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, actix_web::Error> {
-    if session.get_user_id().map_err(e500)?.is_none() {
-        return Ok(see_other("/login"));
-    };
-
     let mut msg_html = String::new();
     for m in flash_messages.iter() {
         writeln!(msg_html, "<p><i>{}</i></p>", m.content()).unwrap();
