@@ -1,14 +1,17 @@
 use crate::{
+    authentication::reject_anonymous_users,
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
     routes::{
-        admin_dashboard, change_password, change_password_from, confirm, health_check, home, login, login_form, logout, publish_newsletter, subscribe
+        admin_dashboard, change_password, change_password_from, confirm, health_check, home, login,
+        login_form, logout, publish_newsletter, subscribe,
     },
 };
 use ::actix_web::{web, App, HttpServer};
 use actix_session::{storage::RedisSessionStore, SessionMiddleware};
-use actix_web::{cookie::Key, dev::Server};
+use actix_web::{cookie::Key, dev::Server, middleware::from_fn};
 use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
+ 
 use secrecy::{ExposeSecret, Secret};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::net::TcpListener;
@@ -45,10 +48,14 @@ async fn run(
             .route("/subscriptions/confirm", web::get().to(confirm))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/newsletters", web::post().to(publish_newsletter))
-            .route("/admin/dashboard", web::get().to(admin_dashboard))
-            .route("/admin/password", web::get().to(change_password_from))
-            .route("/admin/password", web::post().to(change_password))
-            .route("/admin/logout", web::post().to(logout))
+            .service(
+                web::scope("/admin")
+                    .wrap(from_fn(reject_anonymous_users))
+                    .route("/dashboard", web::get().to(admin_dashboard))
+                    .route("/password", web::get().to(change_password_from))
+                    .route("/password", web::post().to(change_password))
+                    .route("/logout", web::post().to(logout)),
+            )
             .app_data(hmac_secret.clone())
             .app_data(connection.clone())
             .app_data(base_url.clone())

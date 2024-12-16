@@ -43,6 +43,7 @@ hex = "0.4"
 actix-session = { version = "0.6", features = ["redis-rs-tls-session"] }
 actix-web-flash-messages = { version = "0.4", features = ["cookies"] }
 serde_json = "1"
+actix-web-lab = "0.16"
 
 [dev-dependencies]
 reqwest = "0.11"
