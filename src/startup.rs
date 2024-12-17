@@ -3,8 +3,7 @@ use crate::{
     configuration::{DatabaseSettings, Settings},
     email_client::EmailClient,
     routes::{
-        admin_dashboard, change_password, change_password_from, confirm, health_check, home, login,
-        login_form, logout, publish_newsletter, subscribe,
+        admin_dashboard, change_password, change_password_from, confirm, health_check, home, login, login_form, logout, newsletters_form, publish_newsletter, subscribe
     },
 };
 use ::actix_web::{web, App, HttpServer};
@@ -54,6 +53,7 @@ async fn run(
                     .route("/password", web::get().to(change_password_from))
                     .route("/password", web::post().to(change_password))
                     .route("/newsletters", web::post().to(publish_newsletter))
+                    .route("/newsletters", web::get().to(newsletters_form))
                     .route("/logout", web::post().to(logout)),
             )
             .app_data(hmac_secret.clone())

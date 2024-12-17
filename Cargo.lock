@@ -4004,6 +4004,7 @@ dependencies = [
  "serde",
  "serde-aux",
  "serde_json",
+ "serde_urlencoded",
  "sha2",
  "sha3",
  "sqlx",
