@@ -31,11 +31,10 @@ pub async fn get_saved_response(
                 response_status_code as "response_status_code!",
                 response_headers as "response_headers!: Vec<HeaderPairRecord>",
                 response_body as "response_body!"
-            FROM idempotency 
-            WHERE 
+            FROM idempotency
+            WHERE
                 user_id = $1 AND
                 idempotency_key = $2
-
         "#,
         user_id,
         idempotency_key.as_ref()
@@ -134,4 +133,63 @@ pub async fn try_processing(
             .ok_or_else(|| anyhow!("We expected a saved response, we didn't find it"))?;
         Ok(NextAction::ReturnSaveResponse(saved_response))
     }
+}
+
+#[tracing::instrument(skip_all)]
+async fn delete_idempotency(
+    pool: &PgPool,
+    idempotency_key: &IdempotencyKey,
+    user_id: Uuid,
+) -> Result<(), anyhow::Error> {
+    sqlx::query!(
+        r#"
+        DELETE FROM idempotency
+        WHERE
+            user_id = $1 AND idempotency_key = $2
+        "#,
+        user_id,
+        idempotency_key.as_ref()
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn delete_expire_idempotencys(pool: &PgPool) -> Result<(), anyhow::Error> {
+    let result = sqlx::query!(
+        r#"
+        DELETE FROM idempotency
+        WHERE
+           created_at < (NOW() - INTERVAL '5 minute')
+        "#,
+    )
+    .execute(pool)
+    .await;
+    if let Err(e) = result {
+        tracing::error!(
+            error.cause = ?e,
+            error.message = %e,
+            "Failed to delete expire idempotencys.",
+        )
+    }
+    Ok(())
+}
+
+pub async fn delete_all_idempotencys(pool: &PgPool) -> Result<(), anyhow::Error> {
+    let result = sqlx::query!(
+        r#"
+        TRUNCATE TABLE idempotency
+        "#,
+    )
+    .execute(pool)
+    .await;
+    if let Err(e) = result {
+        tracing::error!(
+            error.cause = ?e,
+            error.message = %e,
+            "Failed to delete all idempotencys.",
+        )
+    }
+    Ok(())
 }

@@ -8,6 +8,7 @@ use wiremock::MockServer;
 use zero2prod::{
     configuration::{get_configuration, DatabaseSettings},
     email_client::EmailClient,
+    idempotency::delete_all_idempotencys,
     issue_delivery_worker::{try_execute_task, ExecutionOutcome},
     startup::{get_connection_pool, Application},
     telemetry::{get_subscriber, init_subscriber},
@@ -88,6 +89,10 @@ impl TestApp {
                 break;
             }
         }
+    }
+
+    pub async fn clear_idempotencys(&self) {
+        let _ = delete_all_idempotencys(&self.db_pool).await;
     }
 
     pub async fn get_login_html(&self) -> String {

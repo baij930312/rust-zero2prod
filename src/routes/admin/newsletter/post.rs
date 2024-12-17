@@ -106,7 +106,7 @@ async fn insert_newsletter_issue(
     text_content: &str,
     html_content: &str,
 ) -> Result<Uuid, sqlx::Error> {
-    let nesletter_issue_id = Uuid::new_v4();
+    let newsletter_issue_id = Uuid::new_v4();
     sqlx::query!(
         r#"
            INSERT INTO newsletter_issues (
@@ -118,7 +118,7 @@ async fn insert_newsletter_issue(
         )
         VALUES ($1,$2,$3,$4,now())
         "#,
-        nesletter_issue_id,
+        newsletter_issue_id,
         title,
         text_content,
         html_content
@@ -126,7 +126,7 @@ async fn insert_newsletter_issue(
     .execute(transaction)
     .await?;
 
-    Ok(nesletter_issue_id)
+    Ok(newsletter_issue_id)
 }
 
 #[tracing::instrument(skip_all)]

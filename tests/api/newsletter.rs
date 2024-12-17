@@ -169,6 +169,44 @@ async fn newsletter_creation_is_idempotent() {
 
     let html_page = app.get_newsletter_html().await;
     assert!(html_page.contains(r#"<p><i>The newsletter issue has been published!</i></p>"#));
+
+    app.dispatch_all_pending_emails().await;
+}
+
+#[tokio::test]
+async fn newsletters_are_delivered_again_when_idempotency_expire() {
+    let app = spawn_app().await;
+    create_confirmed_subscriber(&app).await;
+    let login_body = serde_json::json!({
+        "username":&app.test_user.username,
+        "password":&app.test_user.password,
+    });
+    app.post_login(&login_body).await;
+
+    Mock::given(path("/email"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(2)
+        .mount(&app.email_server)
+        .await;
+
+    let nesletter_request_body = serde_json::json!({
+        "title":"Newsletter title",
+        "text_content": "Newsletter bodu as plain text",
+        "html_content": "<p>Newsletter bodu as html</p>",
+        "idempotency_key": uuid::Uuid::new_v4().to_string(),
+    });
+    let response = app.post_newsletter(&nesletter_request_body).await;
+    assert_is_redirect_to(&response, "/admin/newsletters");
+
+    let html_page = app.get_newsletter_html().await;
+    assert!(html_page.contains(r#"<p><i>The newsletter issue has been published!</i></p>"#));
+    app.clear_idempotencys().await;
+
+    let response = app.post_newsletter(&nesletter_request_body).await;
+    assert_is_redirect_to(&response, "/admin/newsletters");
+
+    let html_page = app.get_newsletter_html().await;
+    assert!(html_page.contains(r#"<p><i>The newsletter issue has been published!</i></p>"#));
     app.dispatch_all_pending_emails().await;
 }
 

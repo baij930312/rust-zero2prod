@@ -5,7 +5,10 @@ use tracing::{field::display, Span};
 use uuid::Uuid;
 
 use crate::{
-    configuration::Settings, domain::SubscriberEmail, email_client::EmailClient,
+    configuration::Settings,
+    domain::SubscriberEmail,
+    email_client::EmailClient,
+    idempotency::{delete_all_idempotencys, delete_expire_idempotencys},
     startup::get_connection_pool,
 };
 
@@ -140,10 +143,20 @@ async fn get_issue(issue_id: Uuid, pool: &PgPool) -> Result<NewsletterIssue, any
 async fn worker_loop(pool: PgPool, email_client: EmailClient) -> Result<(), anyhow::Error> {
     loop {
         match try_execute_task(&pool, &email_client).await {
-            Ok(ExecutionOutcome::EmptyQueue) => tokio::time::sleep(Duration::from_secs(10)).await,
+            Ok(ExecutionOutcome::EmptyQueue) => {
+                let _ = delete_all_idempotencys(&pool).await;
+                tokio::time::sleep(Duration::from_secs(10)).await
+            }
             Ok(ExecutionOutcome::TaskCompleted) => {}
             Err(_) => tokio::time::sleep(Duration::from_secs(1)).await,
         }
+    }
+}
+
+async fn clear_idempotencys_loop(pool: PgPool) -> Result<(), anyhow::Error> {
+    loop {
+        let _ = delete_expire_idempotencys(&pool).await;
+        tokio::time::sleep(Duration::from_secs(300)).await
     }
 }
 
@@ -151,4 +164,9 @@ pub async fn run_worker_until_stopped(configuration: Settings) -> Result<(), any
     let connection_pool = get_connection_pool(&configuration.database);
     let email_client = configuration.email_client.client();
     worker_loop(connection_pool, email_client).await
+}
+
+pub async fn run_clear_until_stopped(configuration: Settings) -> Result<(), anyhow::Error> {
+    let connection_pool = get_connection_pool(&configuration.database);
+    clear_idempotencys_loop(connection_pool).await
 }
